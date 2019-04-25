@@ -17,7 +17,7 @@ Can be configured:
 
 Add into your Cargo.toml dependencies:
 ```
-idgen = "0.1.1"
+idgen = "0.1.2"
 ```
 
 ```rust

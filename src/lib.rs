@@ -52,6 +52,10 @@ impl IDGen {
         // As system time *may* go backwards, forcefully synchronizing to avoid potentially duplicate ids
         if state.since > now {
             std::thread::sleep(Duration::new(0, ((state.since - now) as u32) * 1000));
+            now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as u64;
         }
 
         if state.since == now {
