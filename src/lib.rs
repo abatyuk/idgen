@@ -1,5 +1,5 @@
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use std::sync::Mutex;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 struct IDGenConfig {
     machine_id_mask: u64,
@@ -29,7 +29,10 @@ impl IDGen {
 
     pub fn new_with_config(machine_id: u8, machine_id_bits: u8, timestamp_bits: u8) -> Self {
         let config = IDGenConfig::new(machine_id, machine_id_bits, timestamp_bits);
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
         IDGen {
             config,
             state: Mutex::new(IDGenState {
@@ -40,23 +43,29 @@ impl IDGen {
     }
 
     pub fn new_id(&self) -> u64 {
-        let mut now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
-        let mut state= self.state.lock().unwrap();
+        let mut now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        let mut state = self.state.lock().unwrap();
 
         // As system time *may* go backwards, forcefully synchronizing to avoid potentially duplicate ids
         if state.since > now {
-            std::thread::sleep(Duration::new(0, ((state.since - now)  as u32)* 1000));
+            std::thread::sleep(Duration::new(0, ((state.since - now) as u32) * 1000));
         }
 
         if state.since == now {
             state.current_seq_no = (state.current_seq_no + 1) & self.config.max_seq_no;
 
-            let hundred_micros = Duration::new(0, 100 * 1000);
+            let hundred_micros = Duration::new(0, 100000);
             if state.current_seq_no == 0 {
                 while state.since == now {
                     // Sleep for hundred microseconds until timestamp changes
                     std::thread::sleep(hundred_micros);
-                    now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
+                    now = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as u64;
                 }
                 state.since = now;
                 state.current_seq_no = 0
@@ -66,7 +75,9 @@ impl IDGen {
             state.current_seq_no = 0
         }
 
-        ((self.config.timestamp_mask & state.since) << self.config.timestamp_shift) | self.config.machine_id_mask | state.current_seq_no
+        ((self.config.timestamp_mask & state.since) << self.config.timestamp_shift)
+            | self.config.machine_id_mask
+            | state.current_seq_no
     }
 }
 
@@ -89,9 +100,9 @@ impl IDGenConfig {
 mod tests {
     use crate::IDGen;
     use std::collections::HashSet;
-    use std::time::SystemTime;
     use std::sync::Arc;
     use std::thread;
+    use std::time::SystemTime;
 
     #[test]
     fn test_uniq() {
