@@ -17,7 +17,7 @@ Can be configured:
 
 ```rust
 fn main() {
-    let mut idgen = IDGen::new(128);
+    let idgen = IDGen::new(128);
     let new_id: u64 = idgen::new_id();
 }
 ```
@@ -26,14 +26,14 @@ Alternatively, it can be configured to have more bits for sequence number with l
 
 ```rust
 fn main() {
-    let mut idgen = IDGen::new_with_config(1, 1, 41);
+    let idgen = IDGen::new_with_config(1, 1, 41);
     let new_id: u64 = idgen::new_id();
 }
 ```
 
 ## Notes
 
-* Performance is "ok" - on MacBook Air 2019 it generates ~8M unique ids per second
+* Performance is "ok" - on MacBook Air 2019 it generates ~3M unique ids per second in single-threaded mode (RefCell overhead for internal mutability at least halves the performance)
 * Strictly speaking, it can be used with less than 41 bits for timestamp (as only last meaningful bits are taken into account)
 * It is not published as crate yet
-* It is currently not thread-safe
+* It is currently not thread-safe (TODO)

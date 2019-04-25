@@ -1,4 +1,5 @@
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
+use std::cell::{RefCell};
 
 struct IDGenConfig {
     machine_id_mask: u64,
@@ -7,14 +8,18 @@ struct IDGenConfig {
     // Max seq number size is 64 - timestamp bits - machine id bits
     // Max seq number is 2^(max key size) - 1
     // Maximum seq number size is 64 - 41 - 1 = 22, so maximum sequence number is 4194303
-    // Making it u64 to avoid conversion at comparison/BitOr
-    max_seq_no: u64
+    // Making it u64 to avoid conversion at comparison/BitOr, and also now it can be used as seq no mask
+    max_seq_no: u64,
+}
+
+struct IDGenState {
+    current_seq_no: u64,
+    since: u64,
 }
 
 pub struct IDGen {
     config: IDGenConfig,
-    current_seq_no: u64,
-    since: u64
+    state: RefCell<IDGenState>,
 }
 
 impl IDGen {
@@ -27,41 +32,44 @@ impl IDGen {
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
         IDGen {
             config,
-            current_seq_no: 0,
-            since: now
+            state: RefCell::new(IDGenState {
+                current_seq_no: 0,
+                since: now,
+            }),
         }
     }
 
-    pub fn new_id(&mut self) -> u64 {
+    pub fn new_id(&self) -> u64 {
         let mut now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
-        if self.since > now {
+        let mut state= self.state.borrow_mut();
+        if state.since > now {
             panic!("Time went back")
-        } else if self.since == now {
-            self.current_seq_no = (self.current_seq_no + 1) & self.config.max_seq_no;
+        } else if state.since == now {
+            state.current_seq_no = (state.current_seq_no + 1) & self.config.max_seq_no;
 
-            let hundred_micros = Duration::new(0, 100*1000);
-            if self.current_seq_no == 0 {
-                while self.since == now {
+            let hundred_micros = Duration::new(0, 100 * 1000);
+            if state.current_seq_no == 0 {
+                while state.since == now {
                     // Sleep for hundred microseconds until timestamp changes
                     std::thread::sleep(hundred_micros);
                     now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
                 }
-                self.since = now;
-                self.current_seq_no = 0
+                state.since = now;
+                state.current_seq_no = 0
             }
         } else {
-            self.since = now;
-            self.current_seq_no = 0
+            state.since = now;
+            state.current_seq_no = 0
         }
 
-        ((self.config.timestamp_mask & self.since) << self.config.timestamp_shift) | self.config.machine_id_mask | self.current_seq_no
+        ((self.config.timestamp_mask & state.since) << self.config.timestamp_shift) | self.config.machine_id_mask | state.current_seq_no
     }
 }
 
 impl IDGenConfig {
     fn new(machine_id: u8, machine_id_bits: u8, timestamp_bits: u8) -> Self {
         assert!(0 < machine_id_bits && machine_id_bits <= 8);
-        assert!(machine_id < ((1 << machine_id_bits) as u16 - 1) as u8) ;
+        assert!(machine_id < ((1 << machine_id_bits) as u16 - 1) as u8);
         assert!(41 <= timestamp_bits && timestamp_bits <= 43);
         let max_seq_bits = 64 - timestamp_bits - machine_id_bits;
         IDGenConfig {
@@ -76,15 +84,19 @@ impl IDGenConfig {
 #[cfg(test)]
 mod tests {
     use crate::IDGen;
-    use std::collections::{HashSet};
+    use std::collections::HashSet;
+    use std::time::SystemTime;
 
     #[test]
-    fn config() {
-        let mut idgen = IDGen::new(0);
+    fn test_uniq() {
+        let idgen = IDGen::new(128);
 
-        let range:Vec<u64> = (0..8000000).map(|_i| idgen.new_id()).collect();
+        let start = SystemTime::now();
+        let range: Vec<u64> = (0..1000000).map(|_i| idgen.new_id()).collect();
         let mut uniq = HashSet::new();
         let all_ids_unique = range.into_iter().all(|id| uniq.insert(id));
         assert!(all_ids_unique);
+        let stop = SystemTime::now();
+        println!("{}", stop.duration_since(start).unwrap().as_millis());
     }
 }
