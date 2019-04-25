@@ -15,19 +15,28 @@ Can be configured:
 
 ## Usage
 
+Add into your Cargo.toml dependencies:
+```
+idgen = "0.1.1"
+```
+
 ```rust
+use idgen::IDGen;
+
 fn main() {
     let idgen = IDGen::new(128);
-    let new_id: u64 = idgen::new_id();
+    println!("{}", idgen.new_id());
 }
 ```
 
 Alternatively, it can be configured to have more bits for sequence number with less bits for machine ID:
 
 ```rust
+use idgen::IDGen;
+
 fn main() {
     let idgen = IDGen::new_with_config(1, 1, 41);
-    let new_id: u64 = idgen::new_id();
+    println!("{}", idgen.new_id());
 }
 ```
 
@@ -36,4 +45,3 @@ fn main() {
 * Performance is "ok" - on MacBook Air 2019 it generates ~3M unique ids per second in single-threaded mode (Overhead for interior mutability/thread safety at least halves the performance)
 * It is thread-safe
 * Strictly speaking, it can be used with less than 41 bits for timestamp (as only last meaningful bits are taken into account)
-* It is not published as crate yet
