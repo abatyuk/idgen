@@ -33,7 +33,7 @@ fn main() {
 
 ## Notes
 
-* Performance is "ok" - on MacBook Air 2019 it generates ~3M unique ids per second in single-threaded mode (RefCell overhead for internal mutability at least halves the performance)
+* Performance is "ok" - on MacBook Air 2019 it generates ~3M unique ids per second in single-threaded mode (RefCell overhead for interior mutability/thread safety at least halves the performance)
+* It is thread-safe
 * Strictly speaking, it can be used with less than 41 bits for timestamp (as only last meaningful bits are taken into account)
 * It is not published as crate yet
-* It is currently not thread-safe (TODO)

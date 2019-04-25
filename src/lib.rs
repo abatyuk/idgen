@@ -1,5 +1,5 @@
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
-use std::cell::{RefCell};
+use std::sync::Mutex;
 
 struct IDGenConfig {
     machine_id_mask: u64,
@@ -19,7 +19,7 @@ struct IDGenState {
 
 pub struct IDGen {
     config: IDGenConfig,
-    state: RefCell<IDGenState>,
+    state: Mutex<IDGenState>,
 }
 
 impl IDGen {
@@ -32,7 +32,7 @@ impl IDGen {
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
         IDGen {
             config,
-            state: RefCell::new(IDGenState {
+            state: Mutex::new(IDGenState {
                 current_seq_no: 0,
                 since: now,
             }),
@@ -41,10 +41,14 @@ impl IDGen {
 
     pub fn new_id(&self) -> u64 {
         let mut now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
-        let mut state= self.state.borrow_mut();
+        let mut state= self.state.lock().unwrap();
+
+        // As system time *may* go backwards, forcefully synchronizing to avoid potentially duplicate ids
         if state.since > now {
-            panic!("Time went back")
-        } else if state.since == now {
+            std::thread::sleep(Duration::new(0, ((state.since - now)  as u32)* 1000));
+        }
+
+        if state.since == now {
             state.current_seq_no = (state.current_seq_no + 1) & self.config.max_seq_no;
 
             let hundred_micros = Duration::new(0, 100 * 1000);
@@ -86,6 +90,8 @@ mod tests {
     use crate::IDGen;
     use std::collections::HashSet;
     use std::time::SystemTime;
+    use std::sync::Arc;
+    use std::thread;
 
     #[test]
     fn test_uniq() {
@@ -98,5 +104,23 @@ mod tests {
         assert!(all_ids_unique);
         let stop = SystemTime::now();
         println!("{}", stop.duration_since(start).unwrap().as_millis());
+    }
+
+    #[test]
+    fn test_threads() {
+        let idgen = Arc::new(IDGen::new(128));
+        let mut handles = vec![];
+
+        for _ in 0..8 {
+            let idgen = Arc::clone(&idgen);
+            let handle = thread::spawn(move || {
+                let _range: Vec<u64> = (0..1000000).map(|_i| idgen.new_id()).collect();
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
     }
 }
